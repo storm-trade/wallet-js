@@ -45,11 +45,14 @@ export class Wallet {
     public readonly name: string = '',
   ) {}
 
-  async init() {
+  async init(networkGlobalId?: number) {
     this.keys = await mnemonicToPrivateKey(this.mnemonic.split(' '));
     const tonWallet = WalletContractV5R1.create({
       workchain: 0,
       publicKey: this.keys.publicKey,
+      walletId: {
+        networkGlobalId,
+      },
     });
     this.tonContract = this.client.open(tonWallet);
     this.tonContractState = await this.checkContractState(tonWallet.address);
