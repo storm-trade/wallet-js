@@ -328,12 +328,12 @@ export class Wallet {
 
   private toAsset(assetName: string, amount: number): bigint {
     if (assetName === 'TON') {
-      return BigInt(amount * 10 ** 9);
+      return BigInt(Math.round(amount * 10 ** 9));
     }
     if (!this.jettonDecimals[assetName]) {
       throw new Error(`Jetton asset ${assetName} not found`);
     }
-    return BigInt(amount * 10 ** this.jettonDecimals[assetName]);
+    return BigInt(Math.round(amount * 10 ** this.jettonDecimals[assetName]));
   }
 
   private fromAsset(assetName: string, amount: bigint): number {
