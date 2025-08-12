@@ -221,28 +221,28 @@ export class Wallet {
     });
   }
 
-  private async tonTransfer(to: Address | string, amount: bigint): Promise<void> {
+  private async tonTransfer(to: Address | string, amount: bigint): Promise<Buffer> {
     const seqno = await this._tonContract.getSeqno();
+    const transfer = internal({
+      bounce: false,
+      to: toAddress(to),
+      value: amount,
+    });
     await this._tonContract.sendTransfer({
       seqno,
       secretKey: this._keys.secretKey,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
-      messages: [
-        internal({
-          bounce: false,
-          to: toAddress(to),
-          value: amount,
-        }),
-      ],
+      messages: [transfer],
     });
     await this.waitSeqno(seqno);
+    return transfer.body.hash();
   }
 
   private async jettonTransfer(
     jettonName: string,
     to: Address | string,
     amount: bigint,
-  ): Promise<void> {
+  ): Promise<Buffer> {
     const jettonMaster = this.getJettonMaster(jettonName);
     const transfer = await this.createJettonTransferMessage(jettonMaster, toAddress(to), amount);
     const seqno = await this._tonContract.getSeqno();
@@ -253,6 +253,7 @@ export class Wallet {
       messages: [transfer],
     });
     await this.waitSeqno(seqno);
+    return transfer.body.hash();
   }
 
   async getAllBalances(): Promise<Record<string, number>> {
@@ -311,9 +312,9 @@ export class Wallet {
     return this.createTransferMessageRaw(assetName, to, assetAmount);
   }
 
-  async transferRaw(assetName: string, to: Address | string, amount: bigint): Promise<void> {
+  async transferRaw(assetName: string, to: Address | string, amount: bigint): Promise<Buffer> {
     if (amount === 0n) {
-      return;
+      return Buffer.alloc(0);
     }
     if (assetName === 'TON') {
       return this.tonTransfer(to, amount);
@@ -321,7 +322,7 @@ export class Wallet {
     return this.jettonTransfer(assetName, to, amount);
   }
 
-  async transfer(assetName: string, to: Address | string, amount: number): Promise<void> {
+  async transfer(assetName: string, to: Address | string, amount: number): Promise<Buffer> {
     const assetAmount = this.toAsset(assetName, amount);
     return this.transferRaw(assetName, to, assetAmount);
   }
