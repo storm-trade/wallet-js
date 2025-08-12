@@ -1,6 +1,6 @@
 {
   "name": "@storm-trade/wallet-js",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Storm Trade trading SDK",
   "private": false,
   "main": "dist/index.js",
