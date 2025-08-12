@@ -295,6 +295,12 @@ export class Wallet {
     await this.waitSeqno(seqno);
   }
 
+  async sendExternal(external: Cell): Promise<void> {
+    const seqno = await this._tonContract.getSeqno();
+    await this._tonContract.send(external);
+    await this.waitSeqno(seqno);
+  }
+
   async createTransferMessageRaw(assetName: string, to: Address | string, amount: bigint) {
     if (assetName === 'TON') {
       return internal({
