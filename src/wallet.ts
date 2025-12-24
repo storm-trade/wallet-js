@@ -14,7 +14,7 @@ import {
   WalletContractV5R1,
 } from '@ton/ton';
 import { KeyPair, mnemonicToPrivateKey } from '@ton/crypto';
-import { timeout, toAddress } from './utils';
+import { debugLog, timeout, toAddress } from './utils';
 import type { LiteClient } from 'ton-lite-client';
 
 type ContractState = {
@@ -136,6 +136,7 @@ export class Wallet {
   async waitSeqno(seqno: number, checkInterval = 100) {
     let currentSeqno = seqno;
     while (currentSeqno === seqno) {
+      debugLog(`Waiting seqno, current ${currentSeqno}`);
       await timeout(checkInterval);
       currentSeqno = await this._tonContract.getSeqno();
     }
@@ -244,14 +245,18 @@ export class Wallet {
     amount: bigint,
   ): Promise<Buffer> {
     const jettonMaster = this.getJettonMaster(jettonName);
+    debugLog(`Jetton master of ${jettonName} is ${jettonMaster.toString()}`);
     const transfer = await this.createJettonTransferMessage(jettonMaster, toAddress(to), amount);
+    debugLog(`Transfer message created ${transfer.body.hash()}`);
     const seqno = await this._tonContract.getSeqno();
+    debugLog(`Seqno ${seqno}`);
     await this._tonContract.sendTransfer({
       seqno,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
       secretKey: this._keys.secretKey,
       messages: [transfer],
     });
+    debugLog(`Transfer sent`);
     await this.waitSeqno(seqno);
     return transfer.body.hash();
   }
@@ -323,13 +328,17 @@ export class Wallet {
       return Buffer.alloc(0);
     }
     if (assetName === 'TON') {
+      debugLog(`Creating TON transfer ${amount} to ${to.toString()}`);
       return this.tonTransfer(to, amount);
     }
+    debugLog(`Creating Jetton transfer ${amount} ${assetName} to ${to.toString()}`);
     return this.jettonTransfer(assetName, to, amount);
   }
 
   async transfer(assetName: string, to: Address | string, amount: number): Promise<Buffer> {
+    debugLog(`Transfer ${amount} ${assetName} to ${to.toString()}`);
     const assetAmount = this.toAsset(assetName, amount);
+    debugLog(`Amount in asset decimals: ${assetAmount}`);
     return this.transferRaw(assetName, to, assetAmount);
   }
 
