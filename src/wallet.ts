@@ -247,7 +247,7 @@ export class Wallet {
     const jettonMaster = this.getJettonMaster(jettonName);
     debugLog(`Jetton master of ${jettonName} is ${jettonMaster.toString()}`);
     const transfer = await this.createJettonTransferMessage(jettonMaster, toAddress(to), amount);
-    debugLog(`Transfer message created ${transfer.body.hash()}`);
+    debugLog(`Transfer message created ${transfer.body.hash().toString('hex')}`);
     const seqno = await this._tonContract.getSeqno();
     debugLog(`Seqno ${seqno}`);
     await this._tonContract.sendTransfer({
