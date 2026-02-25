@@ -6,21 +6,13 @@ import {
   JettonWallet,
   MessageRelaxed,
   OpenedContract,
-  parseTuple,
   SendMode,
-  serializeTuple,
   TupleBuilder,
-  TupleReader,
   WalletContractV5R1,
 } from '@ton/ton';
 import { KeyPair, mnemonicToPrivateKey } from '@ton/crypto';
 import { debugLog, timeout, toAddress } from './utils';
-import type { LiteClient } from 'ton-lite-client';
-
-type ContractState = {
-  active: boolean;
-  deployed: boolean;
-};
+import { ContractState, TonClientAbstract } from './ton-client-abstract';
 
 export type JettonConfig = {
   name: string;
@@ -40,7 +32,7 @@ export class Wallet {
   private keys?: KeyPair;
 
   constructor(
-    private client: LiteClient,
+    private client: TonClientAbstract,
     private mnemonic: string,
     public readonly name: string = '',
   ) {}
@@ -73,17 +65,15 @@ export class Wallet {
   }
 
   private async waitContractDeploy(address: Address) {
-    let state = undefined;
-    while (state !== 'active') {
-      const master = await this.client.getMasterchainInfo();
-      const updatedAccountState = await this.client.getAccountState(address, master.last);
-      state = updatedAccountState.state?.storage?.state.type;
+    let deployed = undefined;
+    while (!deployed) {
+      deployed = await this.client.isContractDeployed(address);
     }
   }
 
   async deployContract() {
     const seqno = await this._tonContract.getSeqno();
-    console.log(`Wallet ${this.name} deploying contract`);
+    debugLog(`Wallet ${this.name} deploying contract`);
     await this._tonContract.sendTransfer({
       seqno,
       secretKey: this._keys.secretKey,
@@ -99,36 +89,25 @@ export class Wallet {
     });
     await this.waitSeqno(seqno);
     await this.waitContractDeploy(this.getTonAddress());
-    console.log(`Wallet ${this.name} contract deployed`);
+    debugLog(`Wallet ${this.name} contract deployed`);
   }
 
   async checkContractState(address: Address): Promise<ContractState> {
-    const master = await this.client.getMasterchainInfo();
-    const accountState = await this.client.getAccountState(address, master.last);
-    const state: ContractState = {
-      deployed: accountState.state !== null,
-      active: accountState.state?.storage?.state.type === 'active',
-    };
-    return state;
+    return this.client.getContractState(address);
   }
 
   private async parseJettonAddress(userAddress: Address, jettonMasterAddress: Address) {
     const userAddressCell = beginCell().storeAddress(userAddress).endCell();
-    const master = await this.client.getMasterchainInfo();
     const params = new TupleBuilder();
     params.writeSlice(userAddressCell);
-    const response = await this.client.runMethod(
+    const parsed = await this.client.runGetMethod(
       jettonMasterAddress,
       'get_wallet_address',
-      serializeTuple(params.build()).toBoc(),
-      master.last,
+      params.build(),
     );
-    if (!response.result) {
+    if (!parsed) {
       throw new Error('get_wallet_address returned no result');
     }
-
-    const resultTuple = parseTuple(Cell.fromBoc(Buffer.from(response.result, 'base64'))[0]!);
-    const parsed = new TupleReader(resultTuple);
 
     return parsed.readAddress();
   }
@@ -213,16 +192,20 @@ export class Wallet {
     return this._tonContract.getSeqno();
   }
 
-  async createTransfer(messages: MessageRelaxed[], seqno: number) {
+  async createTransfer(messages: MessageRelaxed[], seqno: number, payGasSeparately = true) {
     return this._tonContract.createTransfer({
       seqno,
-      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      sendMode: payGasSeparately ? SendMode.PAY_GAS_SEPARATELY : SendMode.NONE,
       secretKey: this._keys.secretKey,
       messages,
     });
   }
 
-  private async tonTransfer(to: Address | string, amount: bigint): Promise<Buffer> {
+  private async tonTransfer(
+    to: Address | string,
+    amount: bigint,
+    payGasSeparately = true,
+  ): Promise<Buffer> {
     const seqno = await this._tonContract.getSeqno();
     const transfer = internal({
       bounce: false,
@@ -232,7 +215,7 @@ export class Wallet {
     await this._tonContract.sendTransfer({
       seqno,
       secretKey: this._keys.secretKey,
-      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      sendMode: payGasSeparately ? SendMode.PAY_GAS_SEPARATELY : SendMode.NONE,
       messages: [transfer],
     });
     await this.waitSeqno(seqno);
@@ -323,23 +306,33 @@ export class Wallet {
     return this.createTransferMessageRaw(assetName, to, assetAmount);
   }
 
-  async transferRaw(assetName: string, to: Address | string, amount: bigint): Promise<Buffer> {
+  async transferRaw(
+    assetName: string,
+    to: Address | string,
+    amount: bigint,
+    payGasSeparately = true,
+  ): Promise<Buffer> {
     if (amount === 0n) {
       return Buffer.alloc(0);
     }
     if (assetName === 'TON') {
       debugLog(`Creating TON transfer ${amount} to ${to.toString()}`);
-      return this.tonTransfer(to, amount);
+      return this.tonTransfer(to, amount, payGasSeparately);
     }
     debugLog(`Creating Jetton transfer ${amount} ${assetName} to ${to.toString()}`);
     return this.jettonTransfer(assetName, to, amount);
   }
 
-  async transfer(assetName: string, to: Address | string, amount: number): Promise<Buffer> {
+  async transfer(
+    assetName: string,
+    to: Address | string,
+    amount: number,
+    payGasSeparately = true,
+  ): Promise<Buffer> {
     debugLog(`Transfer ${amount} ${assetName} to ${to.toString()}`);
     const assetAmount = this.toAsset(assetName, amount);
     debugLog(`Amount in asset decimals: ${assetAmount}`);
-    return this.transferRaw(assetName, to, assetAmount);
+    return this.transferRaw(assetName, to, assetAmount, payGasSeparately);
   }
 
   private toAsset(assetName: string, amount: number): bigint {
