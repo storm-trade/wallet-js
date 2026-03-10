@@ -112,7 +112,7 @@ export class Wallet {
     return parsed.readAddress();
   }
 
-  async waitSeqno(seqno: number, checkInterval = 100) {
+  async waitSeqno(seqno: number, checkInterval = 500) {
     let currentSeqno = seqno;
     while (currentSeqno === seqno) {
       debugLog(`Waiting seqno, current ${currentSeqno}`);
