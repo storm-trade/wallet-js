@@ -29,7 +29,7 @@
     "@rollup/plugin-commonjs": "^29.0.2",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-typescript": "^12.3.0",
-    "@storm-trade/jest-config": "^1.0.8",
+    "@storm-trade/jest-config": "^1.0.9",
     "@ton/crypto": "^3.3.0",
     "@ton/ton": "^16.2.2",
     "@types/jest": "^29.0.0",
