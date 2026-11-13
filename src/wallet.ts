@@ -10,7 +10,8 @@ import {
   TupleBuilder,
   WalletContractV5R1,
 } from '@ton/ton';
-import { KeyPair, mnemonicToPrivateKey } from '@ton/crypto';
+import { KeyPair } from '@ton/crypto';
+import { mnemonicToKeyPair } from './keys';
 import { debugLog, timeout, toAddress } from './utils';
 import { ContractState, TonClientAbstract } from './ton-client-abstract';
 
@@ -38,7 +39,7 @@ export class Wallet {
   ) {}
 
   async init(networkGlobalId?: number) {
-    this.keys = await mnemonicToPrivateKey(this.mnemonic.split(' '));
+    this.keys = await mnemonicToKeyPair(this.mnemonic);
     const tonWallet = WalletContractV5R1.create({
       workchain: 0,
       publicKey: this.keys.publicKey,
